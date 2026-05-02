@@ -116,8 +116,8 @@ Videos used for development and fine-tuning:
 | File | YouTube | Notes |
 |------|---------|-------|
 | `20220805g1.mp4` | https://www.youtube.com/watch?v=KlhkMhyrC-g | 1080p60, Old CCRB |
-| `20250508g1.mp4` | https://www.youtube.com/watch?v=vF-y5HbF5_c | 1080p30, Clauge middle school (Ann Arbor Rec League) |
-| `20230110.mp4`   | https://www.youtube.com/watch?v=qUhEQGQVcVU | 10800p60, NCRB |
+| `20230110.mp4`   | https://www.youtube.com/watch?v=qUhEQGQVcVU | 1080p60, NCRB |
+| `20250508g1.mp4` | https://www.youtube.com/watch?v=vF-y5HbF5_c | 1080p30, Clague Middle School (Ann Arbor Rec League) |
 
 ## Design notes
 
