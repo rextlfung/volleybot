@@ -22,6 +22,10 @@ Fine-tuned YOLOv8n on ~500 labeled frames from 3 different gyms:
 
 A nano model fine-tuned on domain footage beats a pretrained xlarge by +17pp and runs 6× faster.
 
+**Side-by-side: YOLOv8x COCO (left) vs YOLOv8n fine-tuned (right)**
+
+https://github.com/rextlfung/volleybot/releases/download/v0.1.0/model_comparison.mp4
+
 ## Setup
 
 Requires Python 3.12+, [uv](https://github.com/astral-sh/uv), ffmpeg, and yt-dlp.
