@@ -109,6 +109,16 @@ scripts/
        --concat
    ```
 
+## Sample footage
+
+Videos used for development and fine-tuning:
+
+| File | YouTube | Notes |
+|------|---------|-------|
+| `20220805g1.mp4` | https://www.youtube.com/watch?v=KlhkMhyrC-g | Gym 1 — green curtain backdrop, 1080p60 |
+| `20250508g1.mp4` | https://www.youtube.com/watch?v=vF-y5HbF5_c | Gym 2 — 1080p30 |
+| `20230110.mp4`   | https://www.youtube.com/watch?v=qUhEQGQVcVU | Gym 3 — 1080p60 |
+
 ## Design notes
 
 - **Audio is not used.** Recreational play has continuous chatter — no whistle or silence signals.
