@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local data and outputs (large/binary, not for version control)
+data/
+outputs/
+.ipynb_checkpoints/
+
+# Model weights (downloaded by ultralytics, large binaries)
+*.pt
+
+# Training run artifacts (regenerate with finetune_yolo.py)
+runs/
+
+# Test cache
+.pytest_cache/
+
+# macOS
+.DS_Store
