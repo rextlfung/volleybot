@@ -35,7 +35,7 @@ brew install ffmpeg yt-dlp
 git clone https://github.com/rextlfung/volleybot
 cd volleybot
 uv sync --all-groups
-uv run pytest          # 30 tests
+uv run pytest          # 36 tests
 ```
 
 ## Quick start
@@ -55,28 +55,33 @@ uv run python scripts/cut_rallies.py --input data/mygame.mp4 --concat
 
 ```
 src/volleybot/
-  detection.py      # load CSV, filter_detections(), smoothed_mask()
-  segmentation.py   # rally state machine (detection mask → Segment list)
-  cutter.py         # ffmpeg video cutting and concat
-  tracking.py       # velocity + parabolic arc trajectory filters
+  detection.py        # load CSV, filter_detections(), smoothed_mask()
+  segmentation.py     # rally state machine (detection mask → Segment list)
+  cutter.py           # ffmpeg video cutting and concat
+  classification.py   # load classification CSV, classification_mask()
 
 scripts/
   # Detection
-  yolo_ball_detect_mps.py       # YOLOv8 stream detection with MPS support
-  bg_subtract_detect.py         # background subtraction (fast, noisier)
+  yolo_ball_detect_mps.py             # YOLOv8 stream detection with MPS support
 
   # Analysis
-  analyze_detections.py         # timeline plots + sample frames
-  compare_models.py             # detection rate / speed / side-by-side video
-  compare_phases.py             # comparison figures between two detection CSVs
+  analyze_detections.py               # timeline plots + sample frames
+  compare_models.py                   # detection rate / speed / side-by-side video
+  compare_phases.py                   # comparison figures between two detection CSVs
 
-  # Labeling & fine-tuning
-  sample_frames_for_labeling.py # sample frames for Roboflow upload
-  preview_detections.py         # annotate sampled frames with YOLO boxes for QA
-  finetune_yolo.py              # fine-tune YOLOv8 on a Roboflow-exported dataset
+  # Labeling & fine-tuning (ball detection)
+  sample_frames_for_labeling.py       # sample frames for Roboflow upload
+  preview_detections.py               # annotate sampled frames with YOLO boxes for QA
+  finetune_yolo.py                    # fine-tune YOLOv8 on a Roboflow-exported dataset
+
+  # Labeling & fine-tuning (play-state classifier)
+  sample_frames_for_classification.py # sample frames for live/dead labeling
+  classify_frames.py                  # run YOLOv8-cls → per-frame live/dead CSV
+  finetune_classifier.py              # fine-tune YOLOv8n-cls on Roboflow Classification export
 
   # Pipeline
-  cut_rallies.py                # end-to-end entrypoint: detect → filter → segment → cut
+  cut_rallies.py                      # end-to-end entrypoint: detect → segment → cut
+                                      # --classifier-model / --classifier-csv for classifier-driven segmentation
 ```
 
 ## Fine-tuning your own model
@@ -113,6 +118,37 @@ scripts/
        --concat
    ```
 
+## Classifier-based segmentation (Phase 3)
+
+Ball detection alone gives imprecise rally boundaries when the detector is sensitive enough to also pick up the ball during dead time (serve setup, ball retrieval). A frame-level live/dead classifier solves this by using full-frame context.
+
+1. **Sample frames** for labeling (transition-biased — captures serve toss and point end):
+   ```bash
+   uv run python scripts/sample_frames_for_classification.py \
+       --inputs data/game1.mp4 data/game2.mp4 \
+       --n-frames 200 --csv outputs/game1/detections.csv
+   ```
+
+2. **Label in Roboflow** (Classification project, not Detection). Two classes: `live` / `dead`.
+   - `live` = from serve toss until the point ends
+   - `dead` = everything else (rotation, server bouncing ball, ball retrieval)
+   Export as Folder Structure / YOLOv8 → unzip to `data/roboflow_classification/`.
+
+3. **Fine-tune:**
+   ```bash
+   uv run python scripts/finetune_classifier.py \
+       --data data/roboflow_classification --epochs 30 --device mps
+   ```
+
+4. **Run the pipeline with classifier-driven segmentation:**
+   ```bash
+   uv run python scripts/cut_rallies.py \
+       --input data/mygame.mp4 \
+       --classifier-model runs/classify/volleybot_cls/weights/best.pt \
+       --concat
+   ```
+   Ball detection still runs for every video (tracking CSV for future highlight reels and statistics).
+
 ## Sample footage
 
 Videos used for development and fine-tuning:
@@ -129,3 +165,4 @@ Videos used for development and fine-tuning:
 - **Ball class is auto-detected:** class 32 for COCO models, class 0 for fine-tuned single-class models.
 - **Stream-copy cutting** (`-c copy`) is used by default for fast lossless cuts. Pass `--reencode` for frame-accurate cuts.
 - **Velocity filter** is fps-aware: displacement is scaled by elapsed time, so 30fps and 60fps footage get equivalent thresholds.
+- **Two-stage pipeline:** ball detector (tracking) + frame classifier (segmentation). Decoupling them means the detector can be tuned for recall without breaking segmentation quality.

@@ -30,56 +30,46 @@ brew install ffmpeg yt-dlp
 
 ```
 src/volleybot/
-  detection.py      # load CSV, filter_detections() (conf/size/position), smoothed_mask()
-  segmentation.py   # rally state machine (detection mask → Segment list)
-  cutter.py         # ffmpeg video cutting and concat
-  tracking.py       # trajectory filters: velocity + parabolic arc
+  detection.py        # load CSV, filter_detections(), smoothed_mask(), fill_short_gaps()
+  segmentation.py     # rally state machine (detection mask → Segment list)
+  cutter.py           # ffmpeg video cutting and concat
+  classification.py   # load classification CSV, classification_mask()
 
 scripts/
   # Detection
-  yolo_ball_detect_mps.py       # YOLO stream-based detection with MPS support (USE THIS)
-  yolo_ball_detect.py           # original per-frame YOLO (slower, legacy)
-  bg_subtract_detect.py         # background subtraction detector (fast, noisy)
-  quick_speed_test.py           # CPU vs MPS inference speed benchmark
+  yolo_ball_detect_mps.py             # YOLO stream-based detection with MPS support (USE THIS)
 
   # Analysis
-  analyze_detections.py         # timeline plots + sample frames from YOLO CSV
-  analyze_bg_filtered.py        # bg-subtract with velocity/arc filters
-  analyze_yolo_filtered.py      # YOLO filter parameter comparison
-  compare_detectors.py          # side-by-side YOLO vs bg-subtract plots
-  compare_models.py             # compare two YOLO models: detection rate, speed, side-by-side video
-  compare_phases.py             # generate comparison figures between two detection CSVs (phase 0 vs 1)
-  plot_audio.py                 # audio waveform/spectrogram visualizer
+  analyze_detections.py               # timeline plots + sample frames from YOLO CSV
+  compare_models.py                   # compare two YOLO models: detection rate, speed, side-by-side video
+  compare_phases.py                   # comparison figures between two detection CSVs (phase 0 vs 1)
 
-  # Labeling & fine-tuning
-  sample_frames_for_labeling.py # sample frames from videos for Roboflow upload
-  preview_detections.py         # annotate sampled frames with YOLO boxes for QA
-  finetune_yolo.py              # fine-tune YOLOv8 on a Roboflow-exported dataset
+  # Labeling & fine-tuning (ball detection)
+  sample_frames_for_labeling.py       # sample frames from videos for Roboflow upload
+  preview_detections.py               # annotate sampled frames with YOLO boxes for QA
+  finetune_yolo.py                    # fine-tune YOLOv8 on a Roboflow-exported dataset
+
+  # Labeling & fine-tuning (play-state classifier)
+  sample_frames_for_classification.py # sample frames for live/dead labeling (transition-biased)
+  classify_frames.py                  # run YOLOv8-cls on a video → per-frame live/dead CSV
+  finetune_classifier.py              # fine-tune YOLOv8n-cls on Roboflow Classification export
 
   # Pipeline
-  cut_rallies.py                # end-to-end: detect → filter → segment → cut [MAIN ENTRYPOINT]
-  cut_filtered_rallies.py       # one-off: cut with filtered YOLO detections
-  post_yolo_analysis.py         # run full analysis after YOLO finishes
+  cut_rallies.py                      # end-to-end: detect → segment → cut [MAIN ENTRYPOINT]
+                                      # supports --classifier-model / --classifier-csv
 
 data/                       # raw video files (gitignored)
 outputs/                    # all generated files (gitignored)
-  frames/                   # sampled frames for inspection
-  audio/                    # extracted audio + plots
-  clips/
-    test_2min.mp4                       # 2-min test clip (minutes 9-11)
-    test_2min_annotated.mp4             # YOLO annotated video
-    test_2min_all_rallies.mp4           # highlight reel (raw YOLO, 5 segments)
-    test_2min_filtered_rallies.mp4      # highlight reel (filtered YOLO, 6 segments) ← review this
-    rallies/                            # individual clips (raw)
-    rallies_filtered/                   # individual clips (filtered) ← review these
-    detections.csv                      # YOLO per-frame detections
-    detections_bg.csv                   # bg-subtract detections
-  analysis/
-    detection_timeline.png              # YOLO detection over time
-    rally_segments.png                  # segmentation visualization
-    detector_comparison.png             # YOLO vs bg-subtract side-by-side
-    sample_frames/                      # detected + missed example frames
-tests/                      # pytest unit tests (28 passing)
+  <stem>/
+    detections.csv          # YOLO per-frame ball detections
+    classification.csv      # per-frame live/dead classifier output
+    annotated.mp4           # YOLO-annotated video
+    rallies/                # individual rally clip files
+    <stem>_all_rallies.mp4  # concatenated highlight reel
+  labeling/                 # sampled frames for ball detection labeling
+  labeling_cls/             # sampled frames for live/dead classification labeling
+  analysis/                 # plots and comparison figures
+tests/                      # pytest unit tests (36 passing)
 ```
 
 ## Downloading videos from YouTube
@@ -108,6 +98,25 @@ uv run python scripts/analyze_detections.py --csv outputs/clips/detections_mps.c
 ```bash
 uv run python scripts/cut_rallies.py --input data/20220805g1.mp4 --concat
 ```
+
+### Options
+- Stream-copy (`-c copy`) for fast lossless cuts
+- Re-encode option (`--reencode`) for frame-accurate cuts when needed
+
+## Key design decisions
+
+### Visual-first segmentation
+Audio is not useful for rally segmentation in this footage (recreational play with continuous chatter). All segmentation is visual:
+- Ball detection (YOLOv8x, COCO sports ball class 32)
+- Short gap filling (≤0.5s) to handle missed frames during fast play
+- State machine: DEAD → RALLY on ball detection; RALLY → DEAD after 3s gap
+- Pre-roll 1.5s + post-roll 2.0s padding around raw detection windows
+
+### Ball detection approach
+YOLOv8 stream-based detection (`yolo_ball_detect_mps.py`):
+- Speed at 640px: CPU=3.1 fps, MPS=6.7 fps; `model.predict(stream=True)` runs at ~8 fps end-to-end
+- Always pass `device="mps"` for Apple Silicon
+- Fine-tuned YOLOv8n reaches 38.6 fps on MPS (6× faster than COCO YOLOv8x)
 
 ## Phase 1 findings (from data/20220805g1.mp4, 2-min test clip at minutes 9-11)
 
@@ -138,36 +147,11 @@ uv run python scripts/cut_rallies.py --input data/20220805g1.mp4 --concat
 1. **YOLO false positives on floor** — add `cy < 72% * frame_height` filter (done in `filter_detections()`)
 2. **YOLO misses ball during fast rallies** — motion blur at 60fps kills detection on spikes
 3. **Large merged segment (26-83s)** — need shorter `dead_gap_s` OR more reliable detection
-4. **MPS speed** — see benchmark results in `scripts/benchmark_detection.py`
+4. **MPS speed** — fine-tuned YOLOv8n reaches 38.6 fps on MPS (see Phase 2 results)
 
 ### Recommended next steps
 1. ~~Watch rally clips~~ — done, cut boundaries are reasonable
 2. ~~Build labeled dataset and fine-tune~~ — done (see Phase 2 below)
-
-## Phase 2 results (fine-tuned YOLOv8n, 2026-05-02)
-
-Labeled ~500 frames across 3 gyms in Roboflow (1 class: `volleyball`).
-Roboflow augmentation expanded to 915 train / 87 val / 44 test images.
-Fine-tuned YOLOv8n for 50 epochs on MPS (~45 min).
-
-| Metric | Phase 0 (YOLOv8x COCO) | Phase 1 (YOLOv8n fine-tuned) |
-|--------|------------------------|------------------------------|
-| Raw detection rate (2-min clip) | 32.4% | **47.1%** |
-| Detection rate (10s clip) | 66.4% | **83.7%** |
-| Inference speed (MPS) | 6.3 fps | **38.6 fps** |
-| Best mAP50 (val) | — | 0.523 (epoch 30) |
-
-Key takeaway: a nano model fine-tuned on domain footage **beats a pretrained xlarge** by +17pp
-detection rate and runs **6× faster**. Recall is still ~48% — further improvement requires more
-labeled data, especially for fast spikes (motion-blurred frames).
-
-Fine-tuned weights: `runs/detect/volleybot/weights/best.pt` (gitignored — retrain with `finetune_yolo.py`)
-Comparison figures: `outputs/analysis/phase_comparison/`
-
-### Recommended next steps
-1. Run full pipeline on all 3 gym videos with the fine-tuned model
-2. Review rally cuts — identify failure modes (missed spikes, false positives)
-3. Add more labeled frames for hard cases, retrain for Phase 3
 
 ## Fine-tuning workflow (Phase 2)
 
@@ -234,40 +218,90 @@ uv run python scripts/cut_rallies.py \
 # Note: ball-class is auto-detected (0 for fine-tuned, 32 for COCO models)
 ```
 
-## Key design decisions
+## Phase 2 results (fine-tuned YOLOv8n, 2026-05-02)
 
-### Visual-first segmentation
-Audio is not useful for rally segmentation in this footage (recreational play with continuous chatter). All segmentation is visual:
-- Ball detection (YOLOv8x, COCO sports ball class 32)
-- Short gap filling (≤0.5s) to handle missed frames during fast play
-- State machine: DEAD → RALLY on ball detection; RALLY → DEAD after 3s gap
-- Pre-roll 1.5s + post-roll 2.0s padding around raw detection windows
+Labeled ~500 frames across 3 gyms in Roboflow (1 class: `volleyball`).
+Roboflow augmentation expanded to 915 train / 87 val / 44 test images.
+Fine-tuned YOLOv8n for 50 epochs on MPS (~45 min).
 
-### Ball detection approach
-Two detectors are implemented — use both and compare:
+| Metric | Phase 0 (YOLOv8x COCO) | Phase 1 (YOLOv8n fine-tuned) |
+|--------|------------------------|------------------------------|
+| Raw detection rate (2-min clip) | 32.4% | **47.1%** |
+| Detection rate (10s clip) | 66.4% | **83.7%** |
+| Inference speed (MPS) | 6.3 fps | **38.6 fps** |
+| Best mAP50 (val) | — | 0.523 (epoch 30) |
 
-**1. YOLOv8x (COCO sports ball class 32)**
-- More precise, fewer false positives
-- Speed at 640px: CPU=3.1 fps, MPS=6.7 fps (2.1× speedup) — bottleneck is per-frame Python overhead
-- The `model.predict(stream=True)` pipeline in `yolo_ball_detect_mps.py` runs at ~8 fps end-to-end
-- Always pass `device="mps"` for Apple Silicon
-- Script: `scripts/yolo_ball_detect_mps.py`
+Key takeaway: a nano model fine-tuned on domain footage **beats a pretrained xlarge** by +17pp
+detection rate and runs **6× faster**. Recall is still ~48% — further improvement requires more
+labeled data, especially for fast spikes (motion-blurred frames).
 
-**2. Background subtraction (MOG2 + static diff)**
-- Blazing fast: 36-47 fps on CPU (no GPU needed)
-- 94% raw recall but ~78% of those are false positives (player arms/bodies)
-- After velocity filter: drops to ~22% detection but produces plausible rally segments
-- After arc filter: further noise reduction, same segments
-- Key parameters: `SEARCH_BOT_FRAC=0.75` (search y=10-75%), `MAX_JUMP_PX=90`
-- Script: `scripts/bg_subtract_detect.py`
+Fine-tuned weights: `runs/detect/volleybot/weights/best.pt` (gitignored — retrain with `finetune_yolo.py`)
+Comparison figures: `outputs/analysis/phase_comparison/`
 
-**Trajectory filtering** (`src/volleybot/tracking.py`):
-- `apply_velocity_filter()`: remove detections that jump >90px/frame (physically impossible)
-- `apply_arc_filter()`: remove detections that don't fit local parabolic arc
-- Both filters work on any detector's output
+### Root cause of poor segmentation
+The fine-tuned ball detector has high recall but also detects the ball during dead time (serve setup, ball rolling on floor). No conf/dead_gap combination fixed this — the detector can't distinguish live from dead play from ball position alone.
 
-**Recommended pipeline**: use YOLOv8 as primary + bg subtract (velocity-filtered) as gap-filler.
+### Recommended next steps
+1. ~~Train ball detector~~ — done; kept for tracking/highlights/statistics
+2. Label live/dead frames and train a frame-level play-state classifier (Phase 3)
 
-### Video cutting
-- Stream-copy (`-c copy`) for fast lossless cuts
-- Re-encode option (`--reencode`) for frame-accurate cuts when needed
+### Two-stage segmentation (Phase 3)
+Ball detection alone gives poor segmentation when the fine-tuned model is too sensitive (detects ball during dead time too). Solution: decouple tracking from segmentation.
+
+- **Ball detector** → `detections.csv` — used for future highlight reels + statistics
+- **Frame classifier** → `classification.csv` — drives segmentation (live/dead, full-frame context)
+
+The classifier sees the full frame (player postures, court state, ball position) and can distinguish a serve setup (dead) from an active rally (live) even when both have a ball visible.
+
+## Phase 3 plan: frame-level live/dead classifier
+
+Goal: replace ball-detection-based segmentation with a fine-tuned YOLOv8n-cls model
+that classifies each frame as "live" (rally in progress) or "dead" (between points).
+
+### Step 1: Sample frames for classification labeling
+```bash
+# With ball detection CSV (transition-biased sampling — most valuable):
+uv run python scripts/sample_frames_for_classification.py \
+    --inputs data/20220805g1.mp4 data/20230110.mp4 data/20250508g1.mp4 \
+    --n-frames 200 \
+    --csv outputs/20220805g1/detections.csv
+
+# Output: outputs/labeling_cls/<stem>/frame_XXXXXX.jpg
+```
+
+### Step 2: Label in Roboflow (Classification project)
+1. Create a new **Classification** project (not Detection)
+2. Upload `outputs/labeling_cls/` frames
+3. Label each frame as `live` or `dead`
+   - **LIVE**: from the moment the server tosses the ball until the point ends
+   - **DEAD**: everything else (rotation, server bouncing ball, ball retrieval)
+   - Key transitions: serve toss (dead→live), ball hitting floor/going out (live→dead)
+4. Target: ~400–600 frames total, well-balanced between live/dead
+5. Export as **Folder Structure / YOLOv8** → unzip to `data/roboflow_classification/`
+
+### Step 3: Fine-tune
+```bash
+uv run python scripts/finetune_classifier.py \
+    --data data/roboflow_classification \
+    --epochs 30 --device mps
+# Best weights: runs/classify/volleybot_cls/weights/best.pt
+```
+
+### Step 4: Classify frames
+```bash
+uv run python scripts/classify_frames.py \
+    --input data/20220805g1.mp4 \
+    --model runs/classify/volleybot_cls/weights/best.pt \
+    --device mps
+# Output: outputs/20220805g1/classification.csv
+```
+
+### Step 5: Cut rallies using classifier
+```bash
+uv run python scripts/cut_rallies.py \
+    --input data/20220805g1.mp4 \
+    --classifier-model runs/classify/volleybot_cls/weights/best.pt \
+    --concat
+# Ball detection still runs → outputs/20220805g1/detections.csv
+# Classification drives segmentation → outputs/20220805g1/rallies/
+```
