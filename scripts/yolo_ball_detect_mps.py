@@ -16,6 +16,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+from volleybot.device import best_device
+
 COCO_BALL_CLASS = 32     # sports ball in COCO 80-class models
 CONF_THRESHOLD = 0.15    # low threshold — we'll filter in post
 DEFAULT_MODEL = "yolov8x.pt"
@@ -30,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-video", type=Path, default=DEFAULT_OUT_VIDEO)
     p.add_argument("--out-csv", type=Path, default=DEFAULT_OUT_CSV)
     p.add_argument("--model", default=DEFAULT_MODEL)
-    p.add_argument("--device", default="mps", help="mps | cpu | cuda")
+    p.add_argument("--device", default=best_device(), help="cpu | cuda | mps")
     p.add_argument("--conf", type=float, default=CONF_THRESHOLD)
     p.add_argument("--ball-class", type=int, default=None,
                    help="YOLO class id for the ball; auto-detected if omitted "

@@ -34,6 +34,7 @@ from volleybot.detection import load_csv, filter_detections, smoothed_mask
 from volleybot.segmentation import detect_rallies, merge_overlapping, Segment
 from volleybot.cutter import cut_segments, concat_segments
 from volleybot.classification import load_classification_csv, classification_mask
+from volleybot.device import best_device
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,7 +44,7 @@ def parse_args() -> argparse.Namespace:
                    help="existing detections CSV (skips YOLO if provided)")
     p.add_argument("--out-dir", type=Path, default=None,
                    help="output directory for cut clips (default: outputs/<stem>/rallies)")
-    p.add_argument("--device", default="mps", help="mps | cpu | cuda")
+    p.add_argument("--device", default=best_device(), help="cpu | cuda | mps")
     p.add_argument("--model", default="yolov8x.pt")
     p.add_argument("--conf", type=float, default=0.15,
                    help="YOLO detection confidence threshold")

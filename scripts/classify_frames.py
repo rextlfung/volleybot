@@ -8,7 +8,7 @@ Usage:
   uv run python scripts/classify_frames.py \
       --input data/20220805g1.mp4 \
       --model runs/classify/volleybot_cls/weights/best.pt \
-      --device mps
+      --device cpu
 
   # With annotated output video (optional, slower):
   uv run python scripts/classify_frames.py \
@@ -27,6 +27,8 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
+from volleybot.device import best_device
+
 _GREEN = (0, 200, 0)
 _RED = (0, 0, 220)
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -43,7 +45,7 @@ def parse_args() -> argparse.Namespace:
                    help="output CSV path (default: outputs/<stem>/classification.csv)")
     p.add_argument("--out-video", type=Path, default=None,
                    help="optional annotated output video")
-    p.add_argument("--device", default="mps", help="mps | cpu | cuda")
+    p.add_argument("--device", default=best_device(), help="cpu | cuda | mps")
     return p.parse_args()
 
 

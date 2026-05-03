@@ -23,8 +23,46 @@ uv run pytest             # run tests
 
 Requires ffmpeg and yt-dlp to be installed:
 ```bash
-brew install ffmpeg yt-dlp
+# Windows (winget):
+winget install Gyan.FFmpeg
+winget install yt-dlp.yt-dlp
+
+# macOS (brew):
+# brew install ffmpeg yt-dlp
 ```
+
+### GPU acceleration
+
+Scripts auto-detect the best device (`cuda > mps > cpu`) via `volleybot.device.best_device()`.
+You can always override with `--device cpu|cuda|mps`.
+
+**Windows + AMD GPU (RX 6700 XT):** PyTorch does not support ROCm on Windows — CPU only.
+To use the AMD GPU, run the pipeline under WSL2 (see below).
+
+### AMD GPU via WSL2 + ROCm (RX 6700 XT — UNTESTED, RDNA2 not officially supported)
+
+> **Warning:** AMD's official ROCm WSL2 support targets RDNA3 (RX 7000 series) and select
+> Pro cards. The RX 6700 XT (RDNA2, gfx1031) may work with `HSA_OVERRIDE_GFX_VERSION=10.3.0`
+> but this is unsupported. Native Linux (dual-boot) is the more reliable path for ROCm on RDNA2.
+
+If you want to try WSL2:
+
+1. **Install WSL2 Ubuntu 22.04** and the AMD Windows GPU driver (≥ 23.40)
+2. **Inside WSL2, install ROCm:**
+   ```bash
+   # Add AMD ROCm apt repo (check https://rocm.docs.amd.com for current instructions)
+   sudo apt install rocm-hip-sdk
+   ```
+3. **Install PyTorch with ROCm support** (replace rocm6.2 with latest available):
+   ```bash
+   uv pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.2
+   ```
+4. **Verify:**
+   ```bash
+   python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+   # Should print: True  AMD Radeon RX 6700 XT
+   ```
+5. If verified, `best_device()` will return `"cuda"` automatically and all scripts use the GPU.
 
 ## Project structure
 
@@ -86,7 +124,7 @@ yt-dlp -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 -o 
 
 ### Step 1: Detect ball in a video
 ```bash
-uv run python scripts/yolo_ball_detect_mps.py --input outputs/clips/test_2min.mp4 --device mps
+uv run python scripts/yolo_ball_detect_mps.py --input outputs/clips/test_2min.mp4 --device cpu
 ```
 
 ### Step 2: Analyze detections
@@ -196,7 +234,7 @@ uv run python scripts/finetune_yolo.py \
     --data data/roboflow_dataset/data.yaml \
     --model yolov8n.pt \
     --epochs 50 \
-    --device mps
+    --device cpu
 # Best weights: runs/detect/volleybot/weights/best.pt
 ```
 
@@ -283,7 +321,7 @@ uv run python scripts/sample_frames_for_classification.py \
 ```bash
 uv run python scripts/finetune_classifier.py \
     --data data/roboflow_classification \
-    --epochs 30 --device mps
+    --epochs 30 --device cpu
 # Best weights: runs/classify/volleybot_cls/weights/best.pt
 ```
 
@@ -292,7 +330,7 @@ uv run python scripts/finetune_classifier.py \
 uv run python scripts/classify_frames.py \
     --input data/20220805g1.mp4 \
     --model runs/classify/volleybot_cls/weights/best.pt \
-    --device mps
+    --device cpu
 # Output: outputs/20220805g1/classification.csv
 ```
 

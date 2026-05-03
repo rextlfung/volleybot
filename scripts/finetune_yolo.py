@@ -11,7 +11,7 @@ Usage:
       --data data/roboflow_dataset/data.yaml \
       --model yolov8n.pt \
       --epochs 50 \
-      --device mps
+      --device cpu
 
   # After training, the best weights are at:
   #   runs/detect/volleybot_*/weights/best.pt
@@ -35,6 +35,8 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
+from volleybot.device import best_device
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -49,9 +51,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--imgsz", type=int, default=640,
                    help="training image size (default 640)")
     p.add_argument("--batch", type=int, default=16,
-                   help="batch size (default 16; reduce to 8 if MPS OOM)")
-    p.add_argument("--device", default="mps",
-                   help="training device: mps | cpu | cuda (default mps)")
+                   help="batch size (default 16)")
+    p.add_argument("--device", default=best_device(),
+                   help="training device: cpu | cuda | mps")
     p.add_argument("--name", default="volleybot",
                    help="run name under runs/detect/ (default volleybot)")
     p.add_argument("--patience", type=int, default=15,

@@ -31,6 +31,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+from volleybot.device import best_device
+
 COCO_BALL_CLASS = 32
 _GREEN = (0, 200, 0)
 _BLUE = (220, 100, 0)
@@ -147,7 +149,7 @@ def parse_args() -> argparse.Namespace:
                    help="baseline model (e.g. yolov8x.pt)")
     p.add_argument("--model-b", type=Path, required=True,
                    help="comparison model (e.g. fine-tuned best.pt)")
-    p.add_argument("--device", default="mps")
+    p.add_argument("--device", default=best_device())
     p.add_argument("--conf", type=float, default=0.15,
                    help="confidence threshold (default 0.15 — same as pipeline)")
     p.add_argument("--out-video", type=Path, default=None,

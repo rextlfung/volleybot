@@ -17,7 +17,7 @@ Workflow:
   3. Run this script:
        uv run python scripts/finetune_classifier.py \
            --data data/roboflow_classification \
-           --epochs 30 --device mps
+           --epochs 30 --device cpu
 
   Best weights: runs/classify/volleybot_cls/weights/best.pt
 
@@ -34,6 +34,8 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
+from volleybot.device import best_device
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -49,9 +51,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--imgsz", type=int, default=640,
                    help="training image size (default 640)")
     p.add_argument("--batch", type=int, default=32,
-                   help="batch size (default 32; reduce to 16 if MPS OOM)")
-    p.add_argument("--device", default="mps",
-                   help="training device: mps | cpu | cuda (default mps)")
+                   help="batch size (default 32)")
+    p.add_argument("--device", default=best_device(),
+                   help="training device: cpu | cuda | mps")
     p.add_argument("--name", default="volleybot_cls",
                    help="run name under runs/classify/ (default volleybot_cls)")
     p.add_argument("--patience", type=int, default=10,
@@ -105,7 +107,7 @@ def main() -> None:
     print(f"\nTo classify a video:")
     print(f"  uv run python scripts/classify_frames.py \\")
     print(f"      --input data/20220805g1.mp4 \\")
-    print(f"      --model {best} --device mps")
+    print(f"      --model {best} --device cpu")
     print(f"\nTo run the full pipeline with classifier-driven segmentation:")
     print(f"  uv run python scripts/cut_rallies.py \\")
     print(f"      --input data/20220805g1.mp4 \\")

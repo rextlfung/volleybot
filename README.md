@@ -17,7 +17,7 @@ Fine-tuned YOLOv8n on ~500 labeled frames from 3 different gyms:
 | | YOLOv8x COCO (baseline) | YOLOv8n fine-tuned |
 |---|---|---|
 | Detection rate | 32–66% | **47–84%** |
-| Inference speed (Apple MPS) | 6.3 fps | **38.6 fps** |
+| Inference speed (MPS / Apple Silicon) | 6.3 fps | **38.6 fps** |
 | Best val mAP50 | — | 0.523 |
 
 A nano model fine-tuned on domain footage beats a pretrained xlarge by +17pp and runs 6× faster.
@@ -31,12 +31,22 @@ https://github.com/rextlfung/volleybot/releases/download/v0.1.0/model_comparison
 Requires Python 3.12+, [uv](https://github.com/astral-sh/uv), ffmpeg, and yt-dlp.
 
 ```bash
+# macOS
 brew install ffmpeg yt-dlp
+
+# Windows
+winget install Gyan.FFmpeg
+winget install yt-dlp.yt-dlp
+```
+
+```bash
 git clone https://github.com/rextlfung/volleybot
 cd volleybot
 uv sync --all-groups
 uv run pytest          # 36 tests
 ```
+
+Scripts auto-detect the best available device (`cuda > mps > cpu`) — no `--device` flag needed in most cases.
 
 ## Quick start
 
@@ -59,6 +69,7 @@ src/volleybot/
   segmentation.py     # rally state machine (detection mask → Segment list)
   cutter.py           # ffmpeg video cutting and concat
   classification.py   # load classification CSV, classification_mask()
+  device.py           # best_device(): auto-detect cuda > mps > cpu
 
 scripts/
   # Detection
@@ -98,7 +109,7 @@ scripts/
    ```bash
    uv run python scripts/finetune_yolo.py \
        --data data/roboflow_dataset/data.yaml \
-       --model yolov8n.pt --epochs 50 --device mps
+       --model yolov8n.pt --epochs 50
    ```
 
 4. **Compare against baseline:**
@@ -137,7 +148,7 @@ Ball detection alone gives imprecise rally boundaries when the detector is sensi
 3. **Fine-tune:**
    ```bash
    uv run python scripts/finetune_classifier.py \
-       --data data/roboflow_classification --epochs 30 --device mps
+       --data data/roboflow_classification --epochs 30
    ```
 
 4. **Run the pipeline with classifier-driven segmentation:**
