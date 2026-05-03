@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from volleybot.detection import load_csv, detection_mask, smoothed_mask
 from volleybot.segmentation import detect_rallies, merge_overlapping
 

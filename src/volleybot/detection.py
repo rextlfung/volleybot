@@ -106,30 +106,33 @@ def detection_mask(detections: list[Detection]) -> np.ndarray:
     return np.array([d.detected for d in detections], dtype=bool)
 
 
-def smoothed_mask(
-    detections: list[Detection],
-    fps: float,
-    fill_gap_s: float = 0.5,
-) -> np.ndarray:
-    """Fill short detection gaps (≤ fill_gap_s) to smooth over missed frames.
+def fill_short_gaps(mask: np.ndarray, gap_frames: int) -> np.ndarray:
+    """Fill interior False gaps of length ≤ gap_frames in a boolean mask.
 
-    A ball moving at 20 m/s can cross a frame in <2 frames at 60fps, so
-    isolated single-frame misses are almost always false negatives.
+    Leading gaps (before the first True) are never filled.
     """
-    mask = detection_mask(detections).copy()
-    gap_frames = int(fill_gap_s * fps)
-    seen_detection = False
+    mask = mask.copy()
+    seen = False
     i = 0
     while i < len(mask):
         if not mask[i]:
             j = i
             while j < len(mask) and not mask[j]:
                 j += 1
-            # Only fill gaps between two detected windows, never leading gaps.
-            if seen_detection and j < len(mask) and (j - i) <= gap_frames:
+            if seen and j < len(mask) and (j - i) <= gap_frames:
                 mask[i:j] = True
             i = j
         else:
-            seen_detection = True
+            seen = True
             i += 1
     return mask
+
+
+def smoothed_mask(
+    detections: list[Detection],
+    fps: float,
+    fill_gap_s: float = 0.5,
+) -> np.ndarray:
+    """Fill short detection gaps (≤ fill_gap_s) to smooth over missed frames."""
+    mask = detection_mask(detections)
+    return fill_short_gaps(mask, int(fill_gap_s * fps))

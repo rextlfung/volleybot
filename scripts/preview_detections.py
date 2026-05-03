@@ -16,12 +16,10 @@ Output: one annotated JPEG per frame in <out-dir>/.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import cv2
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from volleybot.detection import load_csv, filter_detections, Detection
 
 

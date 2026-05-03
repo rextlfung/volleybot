@@ -25,13 +25,10 @@ Roboflow tip: use "Auto Label" → COCO sports-ball to pre-label, then correct.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def _uniform_indices(total_frames: int, n: int) -> list[int]:
@@ -77,21 +74,17 @@ def _biased_indices(
 def _extract(video: Path, indices: list[int], out_dir: Path) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     cap = cv2.VideoCapture(str(video))
-    want = set(indices)
     saved = 0
-    idx = 0
-    while True:
+    for idx in sorted(indices):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         ret, frame = cap.read()
-        if not ret:
-            break
-        if idx in want:
+        if ret:
             cv2.imwrite(
                 str(out_dir / f"frame_{idx:06d}.jpg"),
                 frame,
                 [cv2.IMWRITE_JPEG_QUALITY, 92],
             )
             saved += 1
-        idx += 1
     cap.release()
     return saved
 

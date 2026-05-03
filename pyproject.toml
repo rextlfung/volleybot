@@ -1,7 +1,7 @@
 [project]
 name = "volleybot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Automatic volleyball video editing toolkit — detects rallies and cuts dead time"
 authors = [
     { email = "rexfung@umich.edu" }
 ]
@@ -16,9 +16,6 @@ dependencies = [
     "ultralytics>=8.4.45",
     "wandb>=0.26.1",
 ]
-
-[project.scripts]
-volleybot = "volleybot:main"
 
 [build-system]
 requires = ["uv_build>=0.10.7,<0.11.0"]
