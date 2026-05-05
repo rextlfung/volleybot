@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 import cv2
+from tqdm import tqdm
 from ultralytics import YOLO
 
 from volleybot.device import best_device
@@ -89,44 +90,43 @@ def main() -> None:
     n_live = 0
     t0 = time.time()
 
-    for result in model.predict(
+    stream = model.predict(
         source=str(args.input),
         device=args.device,
         stream=True,
         verbose=False,
-    ):
-        frame_idx = len(rows)
-        time_s = frame_idx / fps
-        probs = result.probs
+    )
+    with tqdm(total=total_frames, unit="fr", desc="classifying", dynamic_ncols=True,
+              mininterval=1.0) as pbar:
+        for result in stream:
+            frame_idx = len(rows)
+            time_s = frame_idx / fps
+            probs = result.probs
 
-        conf_live = float(probs.data[live_idx])
-        conf_dead = float(probs.data[dead_idx])
-        live = conf_live >= conf_dead
+            conf_live = float(probs.data[live_idx])
+            conf_dead = float(probs.data[dead_idx])
+            live = conf_live >= conf_dead
 
-        rows.append({
-            "frame": frame_idx,
-            "time_s": f"{time_s:.3f}",
-            "live": int(live),
-            "conf_live": f"{conf_live:.4f}",
-            "conf_dead": f"{conf_dead:.4f}",
-        })
-        if live:
-            n_live += 1
+            rows.append({
+                "frame": frame_idx,
+                "time_s": f"{time_s:.3f}",
+                "live": int(live),
+                "conf_live": f"{conf_live:.4f}",
+                "conf_dead": f"{conf_dead:.4f}",
+            })
+            if live:
+                n_live += 1
 
-        if writer is not None:
-            frame = result.orig_img.copy()
-            label = f"LIVE {conf_live:.2f}" if live else f"dead {conf_dead:.2f}"
-            color = _GREEN if live else _RED
-            cv2.rectangle(frame, (0, 0), (W - 1, H - 1), color, 6)
-            cv2.putText(frame, label, (16, 44), _FONT, 1.2, color, 3)
-            writer.write(frame)
+            if writer is not None:
+                frame = result.orig_img.copy()
+                label = f"LIVE {conf_live:.2f}" if live else f"dead {conf_dead:.2f}"
+                color = _GREEN if live else _RED
+                cv2.rectangle(frame, (0, 0), (W - 1, H - 1), color, 6)
+                cv2.putText(frame, label, (16, 44), _FONT, 1.2, color, 3)
+                writer.write(frame)
 
-        if frame_idx % 600 == 0 and frame_idx > 0:
-            elapsed = time.time() - t0
-            fps_proc = frame_idx / elapsed
-            eta = (total_frames - frame_idx) / fps_proc
-            print(f"  frame {frame_idx}/{total_frames}  {fps_proc:.1f}fps  "
-                  f"live so far: {n_live/frame_idx*100:.0f}%  ETA: {eta:.0f}s")
+            pbar.update(1)
+            pbar.set_postfix(live=f"{n_live/(frame_idx+1)*100:.0f}%", refresh=False)
 
     if writer:
         writer.release()

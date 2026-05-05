@@ -93,6 +93,9 @@ scripts/
   # Pipeline
   cut_rallies.py                      # end-to-end entrypoint: detect → segment → cut
                                       # --classifier-model / --classifier-csv for classifier-driven segmentation
+  run_pipeline_all.py                 # run cut_rallies.py on all 3 game videos sequentially
+
+run_pipeline.bat                      # Windows: run run_pipeline_all.py via venv Python, log to outputs/logs/
 ```
 
 ## Fine-tuning your own model
@@ -110,6 +113,7 @@ scripts/
    uv run python scripts/finetune_yolo.py \
        --data data/roboflow_dataset/data.yaml \
        --model yolov8n.pt --epochs 50
+   # Logs to wandb project "volleybot" by default; pass --wandb-project "" to disable
    ```
 
 4. **Compare against baseline:**
@@ -149,6 +153,7 @@ Ball detection alone gives imprecise rally boundaries when the detector is sensi
    ```bash
    uv run python scripts/finetune_classifier.py \
        --data data/roboflow_classification --epochs 30
+   # Logs to wandb project "volleybot" by default; pass --wandb-project "" to disable
    ```
 
 4. **Run the pipeline with classifier-driven segmentation:**
@@ -159,6 +164,16 @@ Ball detection alone gives imprecise rally boundaries when the detector is sensi
        --concat
    ```
    Ball detection still runs for every video (tracking CSV for future highlight reels and statistics).
+
+## Batch processing
+
+To run the full pipeline on all game videos sequentially:
+
+```bash
+uv run python scripts/run_pipeline_all.py
+```
+
+On Windows, `run_pipeline.bat` runs the same script using the venv Python directly and appends stdout/stderr to `outputs/logs/all_pipeline.log` / `all_pipeline.err`. Useful for scheduled tasks or running overnight without a terminal.
 
 ## Sample footage
 

@@ -32,6 +32,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import wandb
 from ultralytics import YOLO
 
 from volleybot.device import best_device
@@ -58,6 +59,8 @@ def parse_args() -> argparse.Namespace:
                    help="run name under runs/classify/ (default volleybot_cls)")
     p.add_argument("--patience", type=int, default=10,
                    help="early-stop patience (default 10)")
+    p.add_argument("--wandb-project", default="volleybot",
+                   help="wandb project name (default volleybot; set to '' to disable)")
     return p.parse_args()
 
 
@@ -82,6 +85,20 @@ def main() -> None:
     print(f"imgsz      : {args.imgsz}   batch={args.batch}")
     print()
 
+    if args.wandb_project:
+        wandb.init(
+            project=args.wandb_project,
+            name=args.name,
+            config={
+                "model": args.model,
+                "epochs": args.epochs,
+                "imgsz": args.imgsz,
+                "batch": args.batch,
+                "device": args.device,
+                "patience": args.patience,
+            },
+        )
+
     model = YOLO(args.model)
     results = model.train(
         data=str(args.data),
@@ -100,6 +117,9 @@ def main() -> None:
         flipud=0.0,
         degrees=3.0,
     )
+
+    if args.wandb_project:
+        wandb.finish()
 
     best = Path(results.save_dir) / "weights" / "best.pt"
     print(f"\nTraining complete.")

@@ -14,6 +14,7 @@ import time
 
 import cv2
 import numpy as np
+from tqdm import tqdm
 from ultralytics import YOLO
 
 from volleybot.device import best_device
@@ -84,52 +85,49 @@ def main() -> None:
         verbose=False,
     )
 
-    for frame_idx, result in enumerate(stream):
-        frame = result.orig_img.copy()
-        time_s = frame_idx / fps
+    with tqdm(total=total_frames, unit="fr", desc="detecting", dynamic_ncols=True,
+              mininterval=1.0) as pbar:
+        for frame_idx, result in enumerate(stream):
+            frame = result.orig_img.copy()
+            time_s = frame_idx / fps
 
-        row = {
-            "frame": frame_idx,
-            "time_s": f"{time_s:.3f}",
-            "detected": 0,
-            "conf": "",
-            "x1": "", "y1": "", "x2": "", "y2": "",
-            "ball_w": "", "ball_h": "",
-        }
+            row = {
+                "frame": frame_idx,
+                "time_s": f"{time_s:.3f}",
+                "detected": 0,
+                "conf": "",
+                "x1": "", "y1": "", "x2": "", "y2": "",
+                "ball_w": "", "ball_h": "",
+            }
 
-        if len(result.boxes) > 0:
-            best = result.boxes[result.boxes.conf.argmax()]
-            conf = float(best.conf[0])
-            x1, y1, x2, y2 = map(int, best.xyxy[0].tolist())
-            bw, bh = x2 - x1, y2 - y1
-            cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-            radius = max(bw, bh) // 2
+            if len(result.boxes) > 0:
+                best = result.boxes[result.boxes.conf.argmax()]
+                conf = float(best.conf[0])
+                x1, y1, x2, y2 = map(int, best.xyxy[0].tolist())
+                bw, bh = x2 - x1, y2 - y1
+                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                radius = max(bw, bh) // 2
 
-            cv2.circle(frame, (cx, cy), radius + 4, (0, 255, 0), 3)
-            cv2.putText(frame, f"{conf:.2f}", (x1, max(y1 - 8, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.circle(frame, (cx, cy), radius + 4, (0, 255, 0), 3)
+                cv2.putText(frame, f"{conf:.2f}", (x1, max(y1 - 8, 20)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-            row.update({
-                "detected": 1, "conf": f"{conf:.3f}",
-                "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                "ball_w": bw, "ball_h": bh,
-            })
-            detected += 1
+                row.update({
+                    "detected": 1, "conf": f"{conf:.3f}",
+                    "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                    "ball_w": bw, "ball_h": bh,
+                })
+                detected += 1
 
-        label_color = (0, 255, 0) if row["detected"] else (0, 0, 255)
-        cv2.putText(frame, f"t={time_s:.1f}s  ball={'YES' if row['detected'] else 'no'}",
-                    (16, 44), cv2.FONT_HERSHEY_SIMPLEX, 1.1, label_color, 2)
+            label_color = (0, 255, 0) if row["detected"] else (0, 0, 255)
+            cv2.putText(frame, f"t={time_s:.1f}s  ball={'YES' if row['detected'] else 'no'}",
+                        (16, 44), cv2.FONT_HERSHEY_SIMPLEX, 1.1, label_color, 2)
 
-        rows.append(row)
-        writer.write(frame)
+            rows.append(row)
+            writer.write(frame)
 
-        if frame_idx % 300 == 0:
-            elapsed = time.time() - t0
-            fps_proc = frame_idx / elapsed if elapsed > 0 else 0
-            eta = (total_frames - frame_idx) / fps_proc if fps_proc > 0 else 0
-            pct = detected / (frame_idx + 1) * 100
-            print(f"  frame {frame_idx}/{total_frames}  {fps_proc:.1f}fps  "
-                  f"detected so far: {detected} ({pct:.0f}%)  ETA: {eta:.0f}s")
+            pbar.update(1)
+            pbar.set_postfix(det=f"{detected/(frame_idx+1)*100:.0f}%", refresh=False)
 
     writer.release()
 

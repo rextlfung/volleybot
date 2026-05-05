@@ -28,6 +28,8 @@ import sys
 import time
 from pathlib import Path
 
+_PYTHON = sys.executable
+
 import cv2
 
 from volleybot.detection import load_csv, filter_detections, smoothed_mask
@@ -89,7 +91,7 @@ def run_detection(args) -> Path:
 
     print(f"running YOLO detection on {args.input} ...")
     cmd = [
-        "uv", "run", "python", "scripts/yolo_ball_detect_mps.py",
+        _PYTHON, "scripts/yolo_ball_detect_mps.py",
         "--input", str(args.input),
         "--out-video", str(csv_path.parent / "annotated.mp4"),
         "--out-csv", str(csv_path),
@@ -111,7 +113,7 @@ def run_classification(args) -> Path:
 
     print(f"running classifier on {args.input} ...")
     cmd = [
-        "uv", "run", "python", "scripts/classify_frames.py",
+        _PYTHON, "scripts/classify_frames.py",
         "--input", str(args.input),
         "--model", str(args.classifier_model),
         "--out-csv", str(cls_csv),
