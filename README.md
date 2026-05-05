@@ -17,7 +17,8 @@ Fine-tuned YOLOv8n on ~500 labeled frames from 3 different gyms:
 | | YOLOv8x COCO (baseline) | YOLOv8n fine-tuned |
 |---|---|---|
 | Detection rate | 32–66% | **47–84%** |
-| Inference speed (MPS / Apple Silicon) | 6.3 fps | **38.6 fps** |
+| Inference speed — Apple Silicon (MPS) | 6.3 fps | **38.6 fps** |
+| Inference speed — CPU only | 3.1 fps | faster, not yet benchmarked |
 | Best val mAP50 | — | 0.523 |
 
 A nano model fine-tuned on domain footage beats a pretrained xlarge by +17pp and runs 6× faster.
@@ -46,7 +47,30 @@ uv sync --all-groups
 uv run pytest          # 36 tests
 ```
 
-Scripts auto-detect the best available device (`cuda > mps > cpu`) — no `--device` flag needed in most cases.
+### GPU / device support
+
+Scripts auto-detect the best available device (`cuda > mps > cpu`). No `--device` flag is needed in most cases, but see the platform notes below.
+
+| Platform | Device used | Notes |
+|----------|-------------|-------|
+| macOS — Apple Silicon | MPS | ~38.6 fps with fine-tuned YOLOv8n |
+| Linux — NVIDIA GPU | CUDA | fastest; set `--device cuda` if auto-detect misses it |
+| Linux — AMD GPU (RDNA2+) | CUDA\* | requires ROCm — see AMD GPU note in CLAUDE.md |
+| Windows — NVIDIA GPU | CUDA | |
+| **Windows — AMD GPU** | **CPU** | **PyTorch has no ROCm support on Windows** |
+| Any machine, no GPU | CPU | significantly slower than real-time |
+
+**CPU-only performance:** The COCO YOLOv8x baseline runs at ~3.1 fps on CPU. The fine-tuned
+YOLOv8n is lighter but the pipeline still takes several hours per 2-hour 60fps game video (detection +
+classification both run frame-by-frame). **Test on a short clip before committing to a full run:**
+
+```bash
+# Cut a 60-second test clip from minute 9
+ffmpeg -ss 540 -i data/mygame.mp4 -t 60 -c copy outputs/test_60s.mp4 -y
+uv run python scripts/cut_rallies.py --input outputs/test_60s.mp4 --concat
+```
+
+For full-length games on CPU, use `run_pipeline.bat` (Windows) or `nohup` / `screen` (Linux/macOS) to run overnight.
 
 ## Quick start
 
@@ -173,7 +197,7 @@ To run the full pipeline on all game videos sequentially:
 uv run python scripts/run_pipeline_all.py
 ```
 
-On Windows, `run_pipeline.bat` runs the same script using the venv Python directly and appends stdout/stderr to `outputs/logs/all_pipeline.log` / `all_pipeline.err`. Useful for scheduled tasks or running overnight without a terminal.
+On Windows, `run_pipeline.bat` runs the same script using the venv Python directly and appends stdout/stderr to `outputs/logs/all_pipeline.log` / `all_pipeline.err`. Useful for running overnight as a scheduled task without a terminal window.
 
 ## Sample footage
 
@@ -192,3 +216,4 @@ Videos used for development and fine-tuning:
 - **Stream-copy cutting** (`-c copy`) is used by default for fast lossless cuts. Pass `--reencode` for frame-accurate cuts.
 - **Velocity filter** is fps-aware: displacement is scaled by elapsed time, so 30fps and 60fps footage get equivalent thresholds.
 - **Two-stage pipeline:** ball detector (tracking) + frame classifier (segmentation). Decoupling them means the detector can be tuned for recall without breaking segmentation quality.
+- **Windows + AMD GPU:** PyTorch does not support ROCm on Windows, so the AMD GPU goes unused and inference falls back to CPU. Native Linux (dual-boot) or WSL2 with ROCm are the paths to GPU acceleration on AMD hardware (see CLAUDE.md for setup details).
