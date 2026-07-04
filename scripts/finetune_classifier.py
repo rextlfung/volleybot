@@ -32,10 +32,10 @@ import argparse
 import sys
 from pathlib import Path
 
-import wandb
 from ultralytics import YOLO
 
 from volleybot.device import best_device
+from volleybot.wandb_utils import wandb_run
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,41 +85,25 @@ def main() -> None:
     print(f"imgsz      : {args.imgsz}   batch={args.batch}")
     print()
 
-    if args.wandb_project:
-        wandb.init(
-            project=args.wandb_project,
-            name=args.name,
-            config={
-                "model": args.model,
-                "epochs": args.epochs,
-                "imgsz": args.imgsz,
-                "batch": args.batch,
-                "device": args.device,
-                "patience": args.patience,
-            },
-        )
-
     model = YOLO(args.model)
-    results = model.train(
-        data=str(args.data),
-        epochs=args.epochs,
-        imgsz=args.imgsz,
-        batch=args.batch,
-        device=args.device,
-        name=args.name,
-        patience=args.patience,
-        project="runs/classify",
-        # Augmentations appropriate for fixed-angle footage:
-        hsv_h=0.01,
-        hsv_s=0.3,
-        hsv_v=0.3,
-        fliplr=0.5,
-        flipud=0.0,
-        degrees=3.0,
-    )
-
-    if args.wandb_project:
-        wandb.finish()
+    with wandb_run(args):
+        results = model.train(
+            data=str(args.data),
+            epochs=args.epochs,
+            imgsz=args.imgsz,
+            batch=args.batch,
+            device=args.device,
+            name=args.name,
+            patience=args.patience,
+            project="runs/classify",
+            # Augmentations appropriate for fixed-angle footage:
+            hsv_h=0.01,
+            hsv_s=0.3,
+            hsv_v=0.3,
+            fliplr=0.5,
+            flipud=0.0,
+            degrees=3.0,
+        )
 
     best = Path(results.save_dir) / "weights" / "best.pt"
     print(f"\nTraining complete.")
