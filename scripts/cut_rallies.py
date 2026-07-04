@@ -141,10 +141,8 @@ def main() -> None:
 
     cap = cv2.VideoCapture(str(args.input))
     fps = cap.get(cv2.CAP_PROP_FPS)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     cap.release()
-    duration_s = total_frames / fps
 
     # Decide segmentation source: classifier (if provided) or ball detections (default).
     use_classifier = args.classifier_csv or args.classifier_model
@@ -181,6 +179,11 @@ def main() -> None:
                   f"(conf≥{args.filter_conf}, width≤{args.filter_max_px}px, cy<{args.filter_max_y:.0%})")
 
         mask = smoothed_mask(detections, fps, fill_gap_s=0.5)
+
+    # Derive duration from the mask actually used for segmentation rather than
+    # cv2's container-reported frame count, which can drift from what the
+    # detector/classifier's frame-by-frame stream actually decoded.
+    duration_s = len(mask) / fps
 
     segments = detect_rallies(
         mask, fps,

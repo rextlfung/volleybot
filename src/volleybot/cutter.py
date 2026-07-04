@@ -45,7 +45,10 @@ def concat_segments(
         mode="w", suffix=".txt", delete=False, dir=output_path.parent
     ) as tmp:
         for p in segment_paths:
-            tmp.write(f"file '{p.resolve()}'\n")
+            # ffmpeg concat demuxer uses shell-style quoting: escape embedded
+            # single quotes as '\'' inside the single-quoted path.
+            escaped = str(p.resolve()).replace("'", "'\\''")
+            tmp.write(f"file '{escaped}'\n")
         list_file = Path(tmp.name)
 
     try:

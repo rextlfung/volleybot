@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 import time
 from pathlib import Path
 
@@ -74,10 +75,12 @@ def main() -> None:
     model = YOLO(str(args.model))
 
     # Resolve which class index corresponds to "live".
-    # Roboflow sorts alphabetically: dead=0, live=1.
     name_to_idx = {v: k for k, v in model.names.items()}
-    live_idx = name_to_idx.get("live", 1)
-    dead_idx = name_to_idx.get("dead", 0)
+    if "live" not in name_to_idx or "dead" not in name_to_idx:
+        print(f"model class names must include 'live' and 'dead', got: {model.names}")
+        sys.exit(1)
+    live_idx = name_to_idx["live"]
+    dead_idx = name_to_idx["dead"]
     print(f"class mapping: live={live_idx}, dead={dead_idx}  (model.names={model.names})")
 
     writer = None
