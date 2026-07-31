@@ -19,6 +19,7 @@ outputs/
 
 # Training run artifacts (regenerate with finetune_yolo.py)
 runs/
+wandb/
 
 # Test cache
 .pytest_cache/
